@@ -22,12 +22,27 @@
     return true;
   }
 
+  // Function to update SVG position based on its associated element
+  function updateSVGPosition(svgData) {
+    const { svg, element } = svgData;
+    if (!isVisible(element)) {
+      svg.style.display = 'none';
+      return;
+    }
+    
+    svg.style.display = 'block';
+    const center = getCenter(element);
+    svg.style.top = `${center.top - 12}px`;
+    svg.style.left = `${center.left - 12}px`;
+  }
+
   const SVG_NS = 'http://www.w3.org/2000/svg';
   
   // Get all interactive elements that are visible
   const elements = [...document.querySelectorAll('a, label, button, input:not([type=hidden]), select, textarea, [tabindex], [role=button], [role=checkbox], [role=link], [role=menuitem], [role=option], [role=radio], [role=switch], [role=tab]')].filter(isVisible);
   
   const centers = [];
+  const svgElements = []; // Store references to SVG elements and their associated DOM elements
 
   // Iterate through all interactive elements to find their centers and create SVG circles around them
   elements.forEach(el => {
@@ -52,11 +67,13 @@
     circle.setAttribute('cy', '12');
     circle.setAttribute('r', '12');
 
+    // Create unique clip path ID to avoid conflicts
+    const clipId = `clip-${Math.random().toString(36).substr(2, 9)}`;
     const clip = document.createElementNS(SVG_NS, 'clipPath');
-    clip.setAttribute('id', 'clip');
+    clip.setAttribute('id', clipId);
     clip.appendChild(circle.cloneNode());
     svg.appendChild(clip);
-    circle.setAttribute('clip-path', 'url(#clip)');
+    circle.setAttribute('clip-path', `url(#${clipId})`);
 
     if (el.getBoundingClientRect().width < 24 || el.getBoundingClientRect().height < 24) {
       circle.setAttribute('fill', 'rgba(0, 0, 255, 0.3)');
@@ -68,6 +85,31 @@
 
     svg.appendChild(circle);
     document.body.appendChild(svg);
+    
+    // Store reference for later updates
+    svgElements.push({ svg: svg, element: el });
+  });
+
+  // Function to update all SVG positions
+  function updateAllSVGPositions() {
+    svgElements.forEach(updateSVGPosition);
+  }
+
+  // Add event listeners for scroll and resize
+  let updateTimeout;
+  function scheduleUpdate() {
+    if (updateTimeout) {
+      clearTimeout(updateTimeout);
+    }
+    updateTimeout = setTimeout(updateAllSVGPositions, 10);
+  }
+
+  window.addEventListener('scroll', scheduleUpdate, { passive: true });
+  window.addEventListener('resize', scheduleUpdate);
+
+  // Also listen for orientation change on mobile devices
+  window.addEventListener('orientationchange', () => {
+    setTimeout(updateAllSVGPositions, 100);
   });
 
   const overlaps = [];
@@ -88,4 +130,19 @@
 
   // Alert the user about the number of overlapping elements
   alert(`There are ${uniqueOverlaps.length} overlapping controls.`);
+
+  // Store cleanup function globally for potential cleanup
+  window.wcagTargetSizeCleanup = function() {
+    window.removeEventListener('scroll', scheduleUpdate);
+    window.removeEventListener('resize', scheduleUpdate);
+    window.removeEventListener('orientationchange', updateAllSVGPositions);
+    svgElements.forEach(({ svg }) => {
+      if (svg.parentNode) {
+        svg.parentNode.removeChild(svg);
+      }
+    });
+    if (updateTimeout) {
+      clearTimeout(updateTimeout);
+    }
+  };
 })();
