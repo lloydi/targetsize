@@ -131,18 +131,46 @@
   // Alert the user about the number of overlapping elements
   alert(`There are ${uniqueOverlaps.length} overlapping controls.`);
 
-  // Store cleanup function globally for potential cleanup
-  window.wcagTargetSizeCleanup = function() {
+  // Cleanup function
+  function cleanup() {
+    // Remove event listeners
     window.removeEventListener('scroll', scheduleUpdate);
     window.removeEventListener('resize', scheduleUpdate);
     window.removeEventListener('orientationchange', updateAllSVGPositions);
+    
+    // Remove all SVG circles
     svgElements.forEach(({ svg }) => {
       if (svg.parentNode) {
         svg.parentNode.removeChild(svg);
       }
     });
+    
+    // Remove aria-description attributes that were added
+    uniqueOverlaps.forEach(el => {
+      if (el.getAttribute('aria-description') === 'overlap') {
+        el.removeAttribute('aria-description');
+      }
+    });
+    
+    // Clear timeout
     if (updateTimeout) {
       clearTimeout(updateTimeout);
     }
-  };
+    
+    // Remove the keydown event listener
+    document.removeEventListener('keydown', handleKeydown);
+  }
+
+  // Keydown event handler
+  function handleKeydown(event) {
+    if (event.key === 'q' || event.key === 'Q') {
+      cleanup();
+    }
+  }
+
+  // Add keydown event listener for cleanup
+  document.addEventListener('keydown', handleKeydown);
+
+  // Store cleanup function globally for potential programmatic cleanup
+  window.wcagTargetSizeCleanup = cleanup;
 })();
